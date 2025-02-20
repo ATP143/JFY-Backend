@@ -42,7 +42,7 @@ console.log("📄 Service account JSON written to:", credentialsPath);
 
 // Authenticate Google Drive API
 const auth = new google.auth.GoogleAuth({
-  keyFile: credentialsPath,
+  credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS || "{}"), // Read from env
   scopes: ["https://www.googleapis.com/auth/drive.file"],
 });
 
