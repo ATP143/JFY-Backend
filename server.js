@@ -16,12 +16,48 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Log server start
+console.log("🚀 Starting JFY Backend...");
+
+// Ensure GOOGLE_APPLICATION_CREDENTIALS exists
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  console.error("❌ GOOGLE_APPLICATION_CREDENTIALS not found in environment variables!");
+  process.exit(1); // Exit if missing
+}
+
+// Parse JSON from environment variable
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+  console.log("✅ Successfully loaded service account credentials from env.");
+} catch (error) {
+  console.error("❌ Error parsing GOOGLE_APPLICATION_CREDENTIALS:", error);
+  process.exit(1);
+}
+
+// Write JSON to a temporary file
+const credentialsPath = path.resolve("service-account.json");
+fs.writeFileSync(credentialsPath, JSON.stringify(serviceAccount));
+console.log("📄 Service account JSON written to:", credentialsPath);
+
+// Authenticate Google Drive API
+const auth = new google.auth.GoogleAuth({
+  keyFile: credentialsPath,
+  scopes: ["https://www.googleapis.com/auth/drive.file"],
+});
+
+const drive = google.drive({ version: "v3", auth });
+
 // Root Route
 app.get("/", (req, res) => {
+  console.log("📡 Received GET request at /");
   res.send("🚀 JFY Backend is Running!");
 });
 
+// File Upload Route
 app.post("/upload", (req, res) => {
+  console.log("📡 Received POST request at /upload");
+
   const form = new IncomingForm({ multiples: false });
 
   form.parse(req, async (err, fields, files) => {
@@ -32,6 +68,7 @@ app.post("/upload", (req, res) => {
 
     try {
       if (!files.file || !files.file[0]) {
+        console.warn("⚠️ No file uploaded!");
         return res.status(400).json({ error: "No file uploaded" });
       }
 
@@ -40,14 +77,6 @@ app.post("/upload", (req, res) => {
       const mimeType = files.file[0].mimetype;
 
       console.log(`📂 Uploading file: ${fileName} (${mimeType})`);
-
-      // Authenticate Google Drive API
-      const auth = new google.auth.GoogleAuth({
-        keyFile: path.resolve("service-account.json"), // Ensure correct path
-        scopes: ["https://www.googleapis.com/auth/drive.file"],
-      });
-
-      const drive = google.drive({ version: "v3", auth });
 
       // Upload file metadata
       const fileMetadata = {
@@ -60,7 +89,7 @@ app.post("/upload", (req, res) => {
         body: fs.createReadStream(filePath),
       };
 
-      // Upload to Google Drive
+      console.log("🚀 Uploading to Google Drive...");
       const response = await drive.files.create({
         requestBody: fileMetadata,
         media,
